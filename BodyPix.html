@@ -108,7 +108,7 @@
                 maskCanvas.style.display = 'none';
 
                 try {
-                    progressBar.style.width = 15%';
+                    progressBar.style.width = 25%';
 
                     // aplica pré-processamento
                     const preprocessedCanvas = preprocessImage(imageElement);
@@ -121,7 +121,7 @@
                         maxDetections: 1
                     });
 
-                    progressBar.style.width = '75%';
+                    progressBar.style.width = '25%';
 
                     if (segmentation.allPoses.length > 0) {
                         const foregroundColor = { r: 255, g: 255, b: 255, a: 255 };
@@ -185,4 +185,5 @@
 
 </body>
 </html>
+
 
