@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detecção de pessoas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0/dist/body-pix.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        canvas, img {
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .container {
+            max-width: 900px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="container bg-white p-8 rounded-xl shadow-lg w-full">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Detecção de Pessoas</h1>
+        <p class="text-center text-gray-600 mb-6">
+            Selecione uma imagem para análise.
+        </p>
+
+        <div class="flex flex-col items-center space-y-4">
+            <label class="cursor-pointer bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition duration-300">
+                Selecione uma imagem.
+                <input type="file" id="imageInput" class="hidden" accept="image/*">
+            </label>
+
+            <div id="status" class="text-lg font-medium text-gray-700">Processando...</div>
+            <div id="progress" class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div id="progressBar" class="h-full bg-blue-500 transition-all duration-300 ease-in-out" style="width: 0%;"></div>
+            </div>
+            
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full justify-center mt-6">
+                <div class="flex flex-col items-center w-full">
+                    <h2 class="text-xl font-semibold mb-2 text-gray-700">Imagem Original</h2>
+                    <img id="originalImage" class="max-w-full h-auto" style="display:none;" />
+                </div>
+                <div class="flex flex-col items-center w-full">
+                    <h2 class="text-xl font-semibold mb-2 text-gray-700">Pessoas Detectadas</h2>
+                    <canvas id="maskCanvas" class="max-w-full h-auto" style="display:none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const imageInput = document.getElementById('imageInput');
+            const originalImage = document.getElementById('originalImage');
+            const maskCanvas = document.getElementById('maskCanvas');
+            const statusDiv = document.getElementById('status');
+            const progressBar = document.getElementById('progressBar');
+            const ctx = maskCanvas.getContext('2d');
+
+            let model; // A global variable to store the loaded model
+
+            // Load the BodyPix model once on page load
+            async function loadModel() {
+                try {
+                    statusDiv.textContent = 'Carregando o modelo TensorFlow BodyPix...';
+                    model = await bodyPix.load({
+                        architecture: 'MobileNetV1',
+                        outputStride: 16,
+                        multiplier: 0.75,
+                        quantBytes: 2
+                    });
+                    statusDiv.textContent = 'TensorFlow BodyPix pronto. Selecione uma imagem.';
+                } catch (error) {
+                    statusDiv.textContent = 'Erro ao carregar TensorFlow BodyPix. Tente novamente.';
+                    console.error('Error loading BodyPix model:', error);
+                }
+            }
+
+            // Function to process the selected image
+            async function processImage(imageElement) {
+                if (!model) {
+                    statusDiv.textContent = 'Erro: o modelo não foi carregado.';
+                    return;
+                }
+
+                // Reset UI state for a new image upload
+                statusDiv.textContent = 'Processando...';
+                progressBar.style.width = '0%';
+                maskCanvas.style.display = 'none';
+                
+                try {
+                    // Get the segmentation of a person
+                    progressBar.style.width = '25%';
+                    const segmentation = await model.segmentPerson(imageElement, {
+                        flipHorizontal: false,
+                        internalResolution: 'full',
+                        segmentationThreshold: 0.7,
+                        maxDetections: 1
+                    });
+                    
+                    progressBar.style.width = '75%';
+
+                    if (segmentation.allPoses.length > 0) {
+                        // A person was detected, create a silhouette mask
+                        const foregroundColor = { r: 255, g: 255, b: 255, a: 255 }; // White silhouette
+                        const backgroundColor = { r: 0, g: 0, b: 0, a: 0 }; // Transparent background
+                        const backgroundDarkeningMask = bodyPix.toMask(
+                            segmentation,
+                            foregroundColor,
+                            backgroundColor,
+                            true
+                        );
+
+                        // Draw the mask on the canvas
+                        const opacity = 1.0;
+                        const flipHorizontal = false;
+                        const maskBlurAmount = 0;
+                        
+                        maskCanvas.width = imageElement.naturalWidth;
+                        maskCanvas.height = imageElement.naturalHeight;
+                        
+                        bodyPix.drawMask(
+                            maskCanvas, 
+                            imageElement, 
+                            backgroundDarkeningMask, 
+                            opacity, 
+                            maskBlurAmount, 
+                            flipHorizontal
+                        );
+
+                        maskCanvas.style.display = 'block';
+                        statusDiv.textContent = 'Pessoa detectada!';
+                    } else {
+                        // No person detected
+                        statusDiv.textContent = 'Nenhuma pessoa detectada.';
+                        maskCanvas.style.display = 'none';
+                        ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+                    }
+                    
+                    progressBar.style.width = '100%';
+
+                } catch (error) {
+                    statusDiv.textContent = 'Erro durante o processamento.';
+                    console.error('Erro durante o processamento:', error);
+                    progressBar.style.width = '0%';
+                }
+            }
+
+            // Event listener for when a file is selected
+            imageInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    statusDiv.textContent = 'Imagem selecionada, carregando...';
+                    originalImage.style.display = 'block';
+                    originalImage.style.maxWidth = '100%';
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        originalImage.onload = () => {
+                            // Once the image is loaded into the img element, process it
+                            processImage(originalImage);
+                        };
+                        originalImage.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Initial model load
+            loadModel();
+        });
+    </script>
+
+</body>
+</html>
