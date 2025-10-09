@@ -26,7 +26,7 @@
     <div class="container bg-white p-8 rounded-xl shadow-lg w-full">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Detecção de Pessoas</h1>
         <p class="text-center text-gray-600 mb-6">
-            Selecione uma imagem para análise.
+            Selecione uma imagem (mesmo com iluminação fraca ou forte) para análise.
         </p>
 
         <div class="flex flex-col items-center space-y-4">
@@ -64,6 +64,7 @@
 
             let model;
 
+            // 🔹 Carrega o modelo BodyPix
             async function loadModel() {
                 try {
                     statusDiv.textContent = 'Carregando o modelo TensorFlow BodyPix...';
@@ -80,7 +81,7 @@
                 }
             }
 
-                //processando...
+            // 🔹 Processa a imagem selecionada
             async function processImage(imageElement) {
                 if (!model) {
                     statusDiv.textContent = 'Erro: o modelo ainda não foi carregado.';
@@ -94,7 +95,7 @@
                 try {
                     progressBar.style.width = '25%';
 
-                    // Medir brilho
+                    // Criar canvas temporário para medir brilho
                     const tempCanvas = document.createElement('canvas');
                     const tempCtx = tempCanvas.getContext('2d');
                     tempCanvas.width = imageElement.naturalWidth;
@@ -104,14 +105,14 @@
                     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
                     const data = imageData.data;
 
-                    // Calculo do método leve
+                    // Calcula brilho médio (método simples e leve)
                     let totalBrightness = 0;
                     for (let i = 0; i < data.length; i += 4) {
                         totalBrightness += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
                     }
                     const avgBrightness = totalBrightness / (data.length / 4);
 
-                    // Ajuste leve e intenso do brilho
+                    // Ajusta brilho/contraste
                     let brightnessFilter = 1.0;
                     let contrastFilter = 1.0;
 
@@ -119,12 +120,17 @@
                         brightnessFilter = 1.25;
                         contrastFilter = 1.15;
                         console.log('Imagem escura → clareando...');
+                    } else if (avgBrightness > 170) {
+                        brightnessFilter = 0.75;
+                        contrastFilter = 1.05;
+                        console.log('Imagem muito clara → escurecendo...');
                     } else {
                         brightnessFilter = 1.1;
                         contrastFilter = 1.1;
                         console.log('Iluminação equilibrada.');
                     }
 
+                    // Aplica filtro e redesenha imagem ajustada
                     tempCtx.filter = `brightness(${brightnessFilter}) contrast(${contrastFilter})`;
                     tempCtx.drawImage(imageElement, 0, 0, tempCanvas.width, tempCanvas.height);
 
@@ -169,7 +175,7 @@
                 }
             }
 
-            // Seleção de uma imagem
+            // Evento: ao selecionar uma imagem
             imageInput.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 if (file) {
@@ -186,11 +192,11 @@
                     reader.readAsDataURL(file);
                 }
             });
+
+            // 🔹 Carrega modelo ao iniciar
             loadModel();
         });
     </script>
 
 </body>
 </html>
-
-
