@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Pessoas</title>
+    <title>Detecção de pessoas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0/dist/body-pix.min.js"></script>
@@ -62,9 +62,9 @@
             const progressBar = document.getElementById('progressBar');
             const ctx = maskCanvas.getContext('2d');
 
-            let model;
+            let model; // A global variable to store the loaded model
 
-            // Carrega o modelo BodyPix
+            // Load the BodyPix model once on page load
             async function loadModel() {
                 try {
                     statusDiv.textContent = 'Carregando o modelo TensorFlow BodyPix...';
@@ -76,101 +76,93 @@
                     });
                     statusDiv.textContent = 'TensorFlow BodyPix pronto. Selecione uma imagem.';
                 } catch (error) {
-                    statusDiv.textContent = 'Erro ao carregar TensorFlow BodyPix.';
-                    console.error(error);
+                    statusDiv.textContent = 'Erro ao carregar TensorFlow BodyPix. Tente novamente.';
+                    console.error('Error loading BodyPix model:', error);
                 }
             }
 
-            // Pré-processa imagem aplicando brilho/contraste
-            function preprocessImage(imageElement) {
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-
-                tempCanvas.width = imageElement.naturalWidth;
-                tempCanvas.height = imageElement.naturalHeight;
-
-                // ajuste de brilho/contraste
-                tempCtx.filter = 'brightness(1.1) contrast(1.2)';
-                tempCtx.drawImage(imageElement, 0, 0);
-
-                return tempCanvas;
-            }
-
-            // Processa a imagem
+            // Function to process the selected image
             async function processImage(imageElement) {
                 if (!model) {
                     statusDiv.textContent = 'Erro: o modelo não foi carregado.';
                     return;
                 }
 
+                // Reset UI state for a new image upload
                 statusDiv.textContent = 'Processando...';
                 progressBar.style.width = '0%';
                 maskCanvas.style.display = 'none';
-
+                
                 try {
-                    progressBar.style.width = 25%';
-
-                    // aplica pré-processamento
-                    const preprocessedCanvas = preprocessImage(imageElement);
-
-                    // segmentação
-                    const segmentation = await model.segmentPerson(preprocessedCanvas, {
+                    // Get the segmentation of a person
+                    progressBar.style.width = '25%';
+                    const segmentation = await model.segmentPerson(imageElement, {
                         flipHorizontal: false,
                         internalResolution: 'full',
-                        segmentationThreshold: 0.9, // mais rigoroso
+                        segmentationThreshold: 0.7,
                         maxDetections: 1
                     });
-
-                    progressBar.style.width = '25%';
+                    
+                    progressBar.style.width = '75%';
 
                     if (segmentation.allPoses.length > 0) {
-                        const foregroundColor = { r: 255, g: 255, b: 255, a: 255 };
-                        const backgroundColor = { r: 0, g: 0, b: 0, a: 0 };
-                        const mask = bodyPix.toMask(segmentation, foregroundColor, backgroundColor, true);
+                        // A person was detected, create a silhouette mask
+                        const foregroundColor = { r: 255, g: 255, b: 255, a: 255 }; // White silhouette
+                        const backgroundColor = { r: 0, g: 0, b: 0, a: 0 }; // Transparent background
+                        const backgroundDarkeningMask = bodyPix.toMask(
+                            segmentation,
+                            foregroundColor,
+                            backgroundColor,
+                            true
+                        );
 
+                        // Draw the mask on the canvas
                         const opacity = 1.0;
                         const flipHorizontal = false;
                         const maskBlurAmount = 0;
-
+                        
                         maskCanvas.width = imageElement.naturalWidth;
                         maskCanvas.height = imageElement.naturalHeight;
-
+                        
                         bodyPix.drawMask(
-                            maskCanvas,
-                            imageElement,
-                            mask,
-                            opacity,
-                            maskBlurAmount,
+                            maskCanvas, 
+                            imageElement, 
+                            backgroundDarkeningMask, 
+                            opacity, 
+                            maskBlurAmount, 
                             flipHorizontal
                         );
 
                         maskCanvas.style.display = 'block';
                         statusDiv.textContent = 'Pessoa detectada!';
                     } else {
+                        // No person detected
                         statusDiv.textContent = 'Nenhuma pessoa detectada.';
                         maskCanvas.style.display = 'none';
                         ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
                     }
-
+                    
                     progressBar.style.width = '100%';
 
                 } catch (error) {
                     statusDiv.textContent = 'Erro durante o processamento.';
-                    console.error(error);
+                    console.error('Erro durante o processamento:', error);
                     progressBar.style.width = '0%';
                 }
             }
 
+            // Event listener for when a file is selected
             imageInput.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 if (file) {
                     statusDiv.textContent = 'Imagem selecionada, carregando...';
                     originalImage.style.display = 'block';
                     originalImage.style.maxWidth = '100%';
-
+                    
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         originalImage.onload = () => {
+                            // Once the image is loaded into the img element, process it
                             processImage(originalImage);
                         };
                         originalImage.src = e.target.result;
@@ -179,11 +171,10 @@
                 }
             });
 
+            // Initial model load
             loadModel();
         });
     </script>
 
 </body>
 </html>
-
-
