@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de pessoas</title>
+    <title>Detecção de Pessoas com Ajuste de Iluminação</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0/dist/body-pix.min.js"></script>
@@ -26,16 +26,16 @@
     <div class="container bg-white p-8 rounded-xl shadow-lg w-full">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Detecção de Pessoas</h1>
         <p class="text-center text-gray-600 mb-6">
-            Selecione uma imagem para análise.
+            Selecione uma imagem (mesmo com iluminação fraca ou forte) para análise.
         </p>
 
         <div class="flex flex-col items-center space-y-4">
             <label class="cursor-pointer bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition duration-300">
-                Selecione uma imagem.
+                Selecione uma imagem
                 <input type="file" id="imageInput" class="hidden" accept="image/*">
             </label>
 
-            <div id="status" class="text-lg font-medium text-gray-700">Processando...</div>
+            <div id="status" class="text-lg font-medium text-gray-700">Carregando modelo...</div>
             <div id="progress" class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div id="progressBar" class="h-full bg-blue-500 transition-all duration-300 ease-in-out" style="width: 0%;"></div>
             </div>
@@ -62,9 +62,9 @@
             const progressBar = document.getElementById('progressBar');
             const ctx = maskCanvas.getContext('2d');
 
-            let model; // A global variable to store the loaded model
+            let model;
 
-            // Load the BodyPix model once on page load
+            // 🔹 Carrega o modelo BodyPix
             async function loadModel() {
                 try {
                     statusDiv.textContent = 'Carregando o modelo TensorFlow BodyPix...';
@@ -74,95 +74,117 @@
                         multiplier: 0.75,
                         quantBytes: 2
                     });
-                    statusDiv.textContent = 'TensorFlow BodyPix pronto. Selecione uma imagem.';
+                    statusDiv.textContent = 'Modelo carregado com sucesso. Selecione uma imagem.';
                 } catch (error) {
-                    statusDiv.textContent = 'Erro ao carregar TensorFlow BodyPix. Tente novamente.';
-                    console.error('Error loading BodyPix model:', error);
+                    statusDiv.textContent = 'Erro ao carregar modelo. Atualize a página.';
+                    console.error('Erro ao carregar BodyPix:', error);
                 }
             }
 
-            // Function to process the selected image
+                //processando...
             async function processImage(imageElement) {
                 if (!model) {
-                    statusDiv.textContent = 'Erro: o modelo não foi carregado.';
+                    statusDiv.textContent = 'Erro: o modelo ainda não foi carregado.';
                     return;
                 }
 
-                // Reset UI state for a new image upload
-                statusDiv.textContent = 'Processando...';
+                statusDiv.textContent = 'Analisando imagem...';
                 progressBar.style.width = '0%';
                 maskCanvas.style.display = 'none';
-                
+
                 try {
-                    // Get the segmentation of a person
                     progressBar.style.width = '25%';
-                    const segmentation = await model.segmentPerson(imageElement, {
+
+                    // Canvas temporário para medir brilho
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCanvas.width = imageElement.naturalWidth;
+                    tempCanvas.height = imageElement.naturalHeight;
+                    tempCtx.drawImage(imageElement, 0, 0);
+
+                    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                    const data = imageData.data;
+
+                    // Calculo do método leve
+                    let totalBrightness = 0;
+                    for (let i = 0; i < data.length; i += 4) {
+                        totalBrightness += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                    }
+                    const avgBrightness = totalBrightness / (data.length / 4);
+
+                    // Ajuste leve e intenso do brilho
+                    let brightnessFilter = 1.0;
+                    let contrastFilter = 1.0;
+
+                    if (avgBrightness < 90) {
+                        brightnessFilter = 1.25;
+                        contrastFilter = 1.15;
+                        console.log('Imagem escura → clareando...');
+                    } else if (avgBrightness > 170) {
+                        brightnessFilter = 0.95;
+                        contrastFilter = 1.05;
+                        console.log('Imagem muito clara → escurecendo...');
+                    } else {
+                        brightnessFilter = 1.1;
+                        contrastFilter = 1.1;
+                        console.log('Iluminação equilibrada.');
+                    }
+
+                    // redesenha imagem ajustada
+                    tempCtx.filter = `brightness(${brightnessFilter}) contrast(${contrastFilter})`;
+                    tempCtx.drawImage(imageElement, 0, 0, tempCanvas.width, tempCanvas.height);
+
+                    progressBar.style.width = '50%';
+
+                    // Segmentação com BodyPix usando imagem ajustada
+                    const segmentation = await model.segmentPerson(tempCanvas, {
                         flipHorizontal: false,
                         internalResolution: 'full',
                         segmentationThreshold: 0.7,
                         maxDetections: 1
                     });
-                    
+
                     progressBar.style.width = '75%';
 
                     if (segmentation.allPoses.length > 0) {
-                        // A person was detected, create a silhouette mask
-                        const foregroundColor = { r: 255, g: 255, b: 255, a: 255 }; // White silhouette
-                        const backgroundColor = { r: 0, g: 0, b: 0, a: 0 }; // Transparent background
-                        const backgroundDarkeningMask = bodyPix.toMask(
+                        const mask = bodyPix.toMask(
                             segmentation,
-                            foregroundColor,
-                            backgroundColor,
+                            { r: 255, g: 255, b: 255, a: 255 },
+                            { r: 0, g: 0, b: 0, a: 0 },
                             true
                         );
 
-                        // Draw the mask on the canvas
-                        const opacity = 1.0;
-                        const flipHorizontal = false;
-                        const maskBlurAmount = 0;
-                        
                         maskCanvas.width = imageElement.naturalWidth;
                         maskCanvas.height = imageElement.naturalHeight;
-                        
-                        bodyPix.drawMask(
-                            maskCanvas, 
-                            imageElement, 
-                            backgroundDarkeningMask, 
-                            opacity, 
-                            maskBlurAmount, 
-                            flipHorizontal
-                        );
 
+                        bodyPix.drawMask(maskCanvas, imageElement, mask, 1.0, 0, false);
                         maskCanvas.style.display = 'block';
                         statusDiv.textContent = 'Pessoa detectada!';
                     } else {
-                        // No person detected
                         statusDiv.textContent = 'Nenhuma pessoa detectada.';
                         maskCanvas.style.display = 'none';
                         ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
                     }
-                    
+
                     progressBar.style.width = '100%';
 
                 } catch (error) {
-                    statusDiv.textContent = 'Erro durante o processamento.';
                     console.error('Erro durante o processamento:', error);
+                    statusDiv.textContent = 'Erro durante o processamento.';
                     progressBar.style.width = '0%';
                 }
             }
 
-            // Event listener for when a file is selected
+            // Seleção de uma imagem
             imageInput.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 if (file) {
-                    statusDiv.textContent = 'Imagem selecionada, carregando...';
+                    statusDiv.textContent = 'Carregando imagem...';
                     originalImage.style.display = 'block';
-                    originalImage.style.maxWidth = '100%';
-                    
+
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         originalImage.onload = () => {
-                            // Once the image is loaded into the img element, process it
                             processImage(originalImage);
                         };
                         originalImage.src = e.target.result;
@@ -170,8 +192,6 @@
                     reader.readAsDataURL(file);
                 }
             });
-
-            // Initial model load
             loadModel();
         });
     </script>
