@@ -78,6 +78,7 @@
                     console.error('Erro ao carregar BodyPix:', error);
                 }
             }
+
             async function processImage(imageElement) {
                 if (!model) {
                     statusDiv.textContent = 'Erro: o modelo ainda não foi carregado.';
@@ -91,7 +92,6 @@
                 try {
                     progressBar.style.width = '25%';
 
-                    // Medir brilho
                     const tempCanvas = document.createElement('canvas');
                     const tempCtx = tempCanvas.getContext('2d');
                     tempCanvas.width = imageElement.naturalWidth;
@@ -101,14 +101,12 @@
                     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
                     const data = imageData.data;
 
-                    // Calcula brilho médio (método simples e leve)
                     let totalBrightness = 0;
                     for (let i = 0; i < data.length; i += 4) {
                         totalBrightness += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
                     }
                     const avgBrightness = totalBrightness / (data.length / 4);
 
-                    // Ajusta brilho/contraste
                     let brightnessFilter = 1.0;
                     let contrastFilter = 1.0;
 
@@ -126,29 +124,22 @@
                         console.log('Iluminação equilibrada.');
                     }
 
-                    // Aplica filtro e redesenha imagem ajustada
                     tempCtx.filter = `brightness(${brightnessFilter}) contrast(${contrastFilter})`;
                     tempCtx.drawImage(imageElement, 0, 0, tempCanvas.width, tempCanvas.height);
 
                     progressBar.style.width = '50%';
 
-                    // Segmentação com BodyPix usando imagem ajustada
                     const segmentation = await model.segmentPerson(tempCanvas, {
                         flipHorizontal: false,
                         internalResolution: 'full',
-                        segmentationThreshold: 0.7,
-                        maxDetections: 1
+                        segmentationThreshold: 0.7
                     });
 
                     progressBar.style.width = '75%';
 
-                    if (segmentation.allPoses.length > 0) {
-                        const mask = bodyPix.toMask(
-                            segmentation,
-                            { r: 255, g: 255, b: 255, a: 255 },
-                            { r: 0, g: 0, b: 0, a: 0 },
-                            true
-                        );
+                    // ✅ Correção principal — segmentPerson não tem allPoses
+                    if (segmentation && segmentation.data.some(v => v === 1)) {
+                        const mask = bodyPix.toMask(segmentation);
 
                         maskCanvas.width = imageElement.naturalWidth;
                         maskCanvas.height = imageElement.naturalHeight;
@@ -171,7 +162,6 @@
                 }
             }
 
-            // Evento: ao selecionar uma imagem
             imageInput.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 if (file) {
@@ -189,11 +179,9 @@
                 }
             });
 
-            // 🔹 Carrega modelo ao iniciar
             loadModel();
         });
     </script>
 
 </body>
 </html>
-
