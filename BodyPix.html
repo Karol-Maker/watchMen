@@ -26,7 +26,7 @@
     <div class="container bg-white p-8 rounded-xl shadow-lg w-full">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Detecção de Pessoas</h1>
         <p class="text-center text-gray-600 mb-6">
-            Selecione uma imagem (mesmo com iluminação fraca ou forte) para análise.
+            Selecione uma imagem para análise.
         </p>
 
         <div class="flex flex-col items-center space-y-4">
@@ -63,8 +63,6 @@
             const ctx = maskCanvas.getContext('2d');
 
             let model;
-
-            // 🔹 Carrega o modelo BodyPix
             async function loadModel() {
                 try {
                     statusDiv.textContent = 'Carregando o modelo TensorFlow BodyPix...';
@@ -80,8 +78,6 @@
                     console.error('Erro ao carregar BodyPix:', error);
                 }
             }
-
-            // 🔹 Processa a imagem selecionada
             async function processImage(imageElement) {
                 if (!model) {
                     statusDiv.textContent = 'Erro: o modelo ainda não foi carregado.';
@@ -95,7 +91,7 @@
                 try {
                     progressBar.style.width = '25%';
 
-                    // Criar canvas temporário para medir brilho
+                    // Medir brilho
                     const tempCanvas = document.createElement('canvas');
                     const tempCtx = tempCanvas.getContext('2d');
                     tempCanvas.width = imageElement.naturalWidth;
@@ -200,3 +196,4 @@
 
 </body>
 </html>
+
