@@ -64,7 +64,6 @@
 
             let model;
 
-            // 🔹 Carrega o modelo BodyPix
             async function loadModel() {
                 try {
                     statusDiv.textContent = 'Carregando o modelo TensorFlow BodyPix...';
@@ -95,7 +94,7 @@
                 try {
                     progressBar.style.width = '25%';
 
-                    // Canvas temporário para medir brilho
+                    // Medir brilho
                     const tempCanvas = document.createElement('canvas');
                     const tempCtx = tempCanvas.getContext('2d');
                     tempCanvas.width = imageElement.naturalWidth;
@@ -130,7 +129,6 @@
                         console.log('Iluminação equilibrada.');
                     }
 
-                    // redesenha imagem ajustada
                     tempCtx.filter = `brightness(${brightnessFilter}) contrast(${contrastFilter})`;
                     tempCtx.drawImage(imageElement, 0, 0, tempCanvas.width, tempCanvas.height);
 
@@ -198,3 +196,4 @@
 
 </body>
 </html>
+
