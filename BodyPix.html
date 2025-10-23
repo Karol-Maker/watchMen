@@ -7,15 +7,15 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0/dist/body-pix.min.js"></script>
-  <style> /* isolar */
+  <style>
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #1a1a1a; /* Preto de fundo */
+      background-color: #1a1a1a; /* Fundo preto */
       color: white;
     }
     .container {
       max-width: 900px;
-      background-color: #2c2c2c; /* Fundo escuro */
+      background-color: #2c2c2c; /* Fundo cinza escuro */
       padding: 40px;
       border-radius: 20px;
       box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
@@ -28,7 +28,7 @@
       margin-bottom: 1.5rem;
     }
     p {
-      color: #D3D3D3; /* Texto tons cinza claro */
+      color: #D3D3D3; /* Cinza claro */
       text-align: center;
       margin-bottom: 2rem;
     }
@@ -100,152 +100,71 @@
   </style>
 </head>
 
-<body>
-  <div class="container">
-    <h1>Detecção de Pessoas</h1>
-    <p>Selecione uma imagem para análise.</p>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+  <div class="container bg-white p-8 rounded-xl shadow-lg w-full">
+    <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Detecção de Pessoas</h1>
+    <p class="text-center text-gray-600 mb-6">Selecione uma imagem para análise.</p>
 
-    <div class="flex-col">
-      <label class="btn btn-primary">
+    <div class="flex flex-col items-center space-y-4">
+      <label class="cursor-pointer bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition duration-300">
         Selecione uma imagem
-        <input type="file" id="imageInput" class="input-file" accept="image/*">
+        <input type="file" id="imageInput" class="hidden" accept="image/*">
       </label>
 
-      <div class="w-full max-w-md space-y-4 bg-gray-700 p-4 rounded-lg">
+      <!-- Controles de brilho e contraste do código antigo -->
+      <div class="w-full max-w-md space-y-4 bg-gray-50 p-4 rounded-lg" id="adjustmentControls">
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2 text-center">Brilho:</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2 text-center">
+            Brilho: <span id="brightnessValue" class="font-bold text-blue-600">0</span>
+          </label>
           <div class="flex items-center justify-center gap-3">
-            <button id="brightnessMinus" class="btn btn-secondary">−</button>
+            <button id="brightnessMinus" class="w-12 h-12 bg-red-500 text-white text-2xl font-bold rounded-lg hover:bg-red-600 transition">−</button>
             <div class="w-20 text-center">
-              <div class="h-2 bg-gray-500 rounded-full overflow-hidden">
-                <div id="brightnessBar" class="h-full bg-blue-500" style="width: 50%;"></div>
+              <div class="h-2 bg-gray-300 rounded-full overflow-hidden">
+                <div id="brightnessBar" class="h-full bg-blue-500 transition-all duration-200" style="width: 50%;"></div>
               </div>
             </div>
-            <button id="brightnessPlus" class="btn btn-secondary">+</button>
+            <button id="brightnessPlus" class="w-12 h-12 bg-green-500 text-white text-2xl font-bold rounded-lg hover:bg-green-600 transition">+</button>
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2 text-center">Contraste:</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2 text-center">
+            Contraste: <span id="contrastValue" class="font-bold text-purple-600">0</span>
+          </label>
           <div class="flex items-center justify-center gap-3">
-            <button id="contrastMinus" class="btn btn-secondary">−</button>
+            <button id="contrastMinus" class="w-12 h-12 bg-red-500 text-white text-2xl font-bold rounded-lg hover:bg-red-600 transition">−</button>
             <div class="w-20 text-center">
-              <div class="h-2 bg-gray-500 rounded-full overflow-hidden">
-                <div id="contrastBar" class="h-full bg-purple-500" style="width: 50%;"></div>
+              <div class="h-2 bg-gray-300 rounded-full overflow-hidden">
+                <div id="contrastBar" class="h-full bg-purple-500 transition-all duration-200" style="width: 50%;"></div>
               </div>
             </div>
-            <button id="contrastPlus" class="btn btn-secondary">+</button>
+            <button id="contrastPlus" class="w-12 h-12 bg-green-500 text-white text-2xl font-bold rounded-lg hover:bg-green-600 transition">+</button>
           </div>
         </div>
 
         <div class="flex gap-2">
-          <button id="resetButton" class="btn btn-secondary flex-1">Resetar</button>
-          <button id="processButton" class="btn btn-primary flex-1">Processar</button>
+          <button id="resetButton" class="flex-1 bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Resetar</button>
+          <button id="processButton" class="flex-1 bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition">Processar</button>
         </div>
       </div>
 
-      <div id="status" class="text-lg font-medium text-gray-300">Aguardando imagem...</div>
-
-      <div class="progress-container">
-        <div id="progressBar" class="progress-bar"></div>
+      <div id="status" class="text-lg font-medium text-gray-700">Aguardando imagem...</div>
+      <div id="progress" class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div id="progressBar" class="h-full bg-blue-500 transition-all duration-300 ease-in-out" style="width: 0%;"></div>
       </div>
 
-      <div class="flex-row">
-        <div class="flex-col">
-          <h2 class="text-xl font-semibold mb-2 text-gray-300">Imagem Original</h2>
-          <img id="originalImage" style="display:none;" alt="Imagem selecionada">
+      <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full justify-center mt-6">
+        <div class="flex flex-col items-center w-full">
+          <h2 class="text-xl font-semibold mb-2 text-gray-700">Imagem Original</h2>
+          <img id="originalImage" class="max-w-full h-auto" style="display:none;" alt="Imagem selecionada">
         </div>
-        <div class="flex-col">
-          <h2 class="text-xl font-semibold mb-2 text-gray-300">Pessoas Detectadas</h2>
-          <canvas id="maskCanvas" style="display:none;" width="600" height="400"></canvas>
+        <div class="flex flex-col items-center w-full">
+          <h2 class="text-xl font-semibold mb-2 text-gray-700">Pessoas Detectadas</h2>
+          <canvas id="maskCanvas" class="max-w-full h-auto" style="display:none;" width="600" height="400"></canvas>
         </div>
       </div>
     </div>
   </div>
-
-  <script>
-    let net;
-    let brightness = 0;
-    let contrast = 0;
-
-    // Carrega o modelo BodyPix
-    async function loadModel() {
-      net = await bodyPix.load();
-      document.getElementById('status').innerText = 'Modelo carregado. Pronto para detectar!';
-    }
-
-    loadModel();
-
-    // Lida com a imagem selecionada
-    document.getElementById('imageInput').addEventListener('change', handleImageUpload);
-
-    async function handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (file) {
-        const img = document.getElementById('originalImage');
-        img.src = URL.createObjectURL(file);
-        img.style.display = 'block';
-
-        document.getElementById('progressBar').style.width = '50%';
-        document.getElementById('status').innerText = 'Detectando pessoas...';
-
-        const image = new Image();
-        image.src = URL.createObjectURL(file);
-
-        image.onload = async () => {
-          const segmentation = await net.segmentPerson(image);
-          document.getElementById('progressBar').style.width = '100%';
-
-          const canvas = document.getElementById('maskCanvas');
-          const ctx = canvas.getContext('2d');
-          canvas.style.display = 'block';
-          ctx.drawImage(image, 0, 0);
-          bodyPix.drawMask(canvas, image, segmentation, 1, 0, false);
-
-          document.getElementById('status').innerText = segmentation.allPoses.length > 0 ? 'Pessoa(s) detectada(s)' : 'Nenhuma pessoa detectada';
-        };
-      }
-    }
-
-    // para auxiliar npo brilho
-    document.getElementById('brightnessPlus').addEventListener('click', () => {
-      brightness += 10;
-      if (brightness > 100) brightness = 100;
-      document.getElementById('brightnessValue').innerText = brightness;
-      document.getElementById('brightnessBar').style.width = `${brightness}%`;
-      updateImage();
-    });
-
-    document.getElementById('brightnessMinus').addEventListener('click', () => {
-      brightness -= 10;
-      if (brightness < 0) brightness = 0;
-      document.getElementById('brightnessValue').innerText = brightness;
-      document.getElementById('brightnessBar').style.width = `${brightness}%`;
-      updateImage();
-    });
-
-    // Ajuste contrast
-    document.getElementById('contrastPlus').addEventListener('click', () => {
-      contrast += 10;
-      if (contrast > 100) contrast = 100;
-      document.getElementById('contrastValue').innerText = contrast;
-      document.getElementById('contrastBar').style.width = `${contrast}%`;
-      updateImage();
-    });
-
-    document.getElementById('contrastMinus').addEventListener('click', () => {
-      contrast -= 10;
-      if (contrast < 0) contrast = 0;
-      document.getElementById('contrastValue').innerText = contrast;
-      document.getElementById('contrastBar').style.width = `${contrast}%`;
-      updateImage();
-    });
-
-    // Atualizaimagerm bri, cont
-    function updateImage() {
-      const img = document.getElementById('originalImage');
-      img.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
-    }
-  </script>
 </body>
 </html>
