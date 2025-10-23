@@ -33,7 +33,7 @@
         <input type="file" id="imageInput" class="hidden" accept="image/*">
       </label>
 
-      <!-- Controles de brilho e contraste -->
+      <!-- Controles de brilho e contraste (opcionais) -->
       <div class="w-full max-w-md space-y-4 bg-gray-50 p-4 rounded-lg" id="adjustmentControls">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2 text-center">
@@ -64,11 +64,6 @@
             <button id="contrastPlus" class="w-12 h-12 bg-green-500 text-white text-2xl font-bold rounded-lg hover:bg-green-600 transition">+</button>
           </div>
         </div>
-
-        <div class="flex gap-2">
-          <button id="resetButton" class="flex-1 bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Resetar</button>
-          <button id="processButton" class="flex-1 bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition">Processar</button>
-        </div>
       </div>
 
       <div id="status" class="text-lg font-medium text-gray-700">Aguardando imagem...</div>
@@ -90,9 +85,53 @@
   </div>
 
   <script>
-    // (seu script original do BodyPix continua daqui)
+    let net;
+
+    // Carregar o modelo BodyPix assim que a página carregar
+    async function loadModel() {
+      net = await bodyPix.load();
+      document.getElementById('status').innerText = 'Modelo carregado. Pronto para detectar!';
+    }
+
+    loadModel();
+
+    // Função para lidar com a seleção da imagem
+    document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+
+    async function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        
+        const img = document.getElementById('originalImage');
+        img.src = URL.createObjectURL(file);
+        img.style.display = 'block';
+
+        // Mostrar progresso del detecção
+        document.getElementById('progressBar').style.width = '50%';
+        document.getElementById('status').innerText = 'Detectando pessoas...';
+
+        const image = new Image();
+        image.src = URL.createObjectURL(file);
+
+        // Quando a imagem carregar
+        image.onload = async () => {
+          const segmentation = await net.segmentPerson(image);
+
+         
+          document.getElementById('progressBar').style.width = '100%';
+
+         
+          const canvas = document.getElementById('maskCanvas');
+          const ctx = canvas.getContext('2d');
+          canvas.style.display = 'block';
+          ctx.drawImage(image, 0, 0);
+          bodyPix.drawMask(canvas, image, segmentation, 1, 0, false);
+
+          // Atualizar o status
+          document.getElementById('status').innerText = segmentation.allPoses.length > 0 ? 'Pessoa(s) detectada(s)' : 'Nenhuma pessoa detectada';
+        };
+      }
+    }
   </script>
 </body>
 </html>
-
-
