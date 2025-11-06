@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de pessoas</title>
+    <title>Remover Fundo - BodyPix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0/dist/body-pix.min.js"></script>
@@ -13,375 +12,100 @@
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
         }
-        canvas, img {
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .container {
-            max-width: 900px;
+        canvas {
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+            height: auto;
         }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+<body class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
 
-    <div class="container bg-white p-8 rounded-xl shadow-lg w-full">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Detecção de Pessoas</h1>
-        <p class="text-center text-gray-600 mb-6">
-            Selecione uma imagem para análise.
-        </p>
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Remoção de Fundo (BodyPix)</h1>
 
-        <div class="flex flex-col items-center space-y-4">
-            <label class="cursor-pointer bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition duration-300">
-                Selecione uma imagem.
-                <input type="file" id="imageInput" class="hidden" accept="image/*">
-            </label>
+    <label class="cursor-pointer bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition duration-300">
+        Escolher imagem
+        <input type="file" id="imageInput" class="hidden" accept="image/*">
+    </label>
 
-            <!-- Brightness and Contrast Controls -->
-            <div class="w-full max-w-md space-y-4 bg-gray-50 p-4 rounded-lg" id="adjustmentControls" style="display:none;">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2 text-center">
-                        Brilho: <span id="brightnessValue" class="font-bold text-blue-600">0</span>
-                    </label>
-                    <div class="flex items-center justify-center gap-3">
-                        <button id="brightnessMinus" class="w-12 h-12 bg-red-500 text-white text-2xl font-bold rounded-lg shadow-md hover:bg-red-600 transition duration-200 active:scale-95">
-                            −
-                        </button>
-                        <div class="w-20 text-center">
-                            <div class="h-2 bg-gray-300 rounded-full overflow-hidden">
-                                <div id="brightnessBar" class="h-full bg-blue-500 transition-all duration-200" style="width: 50%;"></div>
-                            </div>
-                        </div>
-                        <button id="brightnessPlus" class="w-12 h-12 bg-green-500 text-white text-2xl font-bold rounded-lg shadow-md hover:bg-green-600 transition duration-200 active:scale-95">
-                            +
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2 text-center">
-                        Contraste: <span id="contrastValue" class="font-bold text-purple-600">0</span>
-                    </label>
-                    <div class="flex items-center justify-center gap-3">
-                        <button id="contrastMinus" class="w-12 h-12 bg-red-500 text-white text-2xl font-bold rounded-lg shadow-md hover:bg-red-600 transition duration-200 active:scale-95">
-                            −
-                        </button>
-                        <div class="w-20 text-center">
-                            <div class="h-2 bg-gray-300 rounded-full overflow-hidden">
-                                <div id="contrastBar" class="h-full bg-purple-500 transition-all duration-200" style="width: 50%;"></div>
-                            </div>
-                        </div>
-                        <button id="contrastPlus" class="w-12 h-12 bg-green-500 text-white text-2xl font-bold rounded-lg shadow-md hover:bg-green-600 transition duration-200 active:scale-95">
-                            +
-                        </button>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button id="resetButton" class="flex-1 bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-700 transition duration-300">
-                        Resetar
-                    </button>
-                    <button id="processButton" class="flex-1 bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition duration-300">
-                        Processar
-                    </button>
-                </div>
-            </div>
+    <div id="status" class="mt-4 text-gray-700">Carregando modelo TensorFlow...</div>
 
-            <div id="status" class="text-lg font-medium text-gray-700">Processando...</div>
-            <div id="progress" class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div id="progressBar" class="h-full bg-blue-500 transition-all duration-300 ease-in-out" style="width: 0%;"></div>
-            </div>
-                          <div class="flex flex-col items-center w-full mt-6">
-              <h2 class="text-xl font-semibold mb-4 text-gray-700">Imagem + Máscara Sobreposta</h2>
-            
-              <!-- Container com posição relativa -->
-              <div class="relative inline-block">
-                <img id="originalImage" class="max-w-full h-auto rounded-lg shadow" style="display:none;" />
-                <canvas id="maskCanvas" class="absolute top-0 left-0 w-full h-full rounded-lg shadow" style="display:none; pointer-events:none;"></canvas>
-              </div>
-            </div>
-        </div>
-    </div>
+    <canvas id="outputCanvas" class="mt-6" style="display:none;"></canvas>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const imageInput = document.getElementById('imageInput');
-            const originalImage = document.getElementById('originalImage');
-            const maskCanvas = document.getElementById('maskCanvas');
-            const statusDiv = document.getElementById('status');
-            const progressBar = document.getElementById('progressBar');
-            const ctx = maskCanvas.getContext('2d');
-            
-            const brightnessMinus = document.getElementById('brightnessMinus');
-            const brightnessPlus = document.getElementById('brightnessPlus');
-            const contrastMinus = document.getElementById('contrastMinus');
-            const contrastPlus = document.getElementById('contrastPlus');
-            const brightnessValue = document.getElementById('brightnessValue');
-            const contrastValue = document.getElementById('contrastValue');
-            const brightnessBar = document.getElementById('brightnessBar');
-            const contrastBar = document.getElementById('contrastBar');
-            const adjustmentControls = document.getElementById('adjustmentControls');
-            const processButton = document.getElementById('processButton');
-            const resetButton = document.getElementById('resetButton');
+        const imageInput = document.getElementById('imageInput');
+        const statusDiv = document.getElementById('status');
+        const outputCanvas = document.getElementById('outputCanvas');
+        const ctx = outputCanvas.getContext('2d');
+        let model;
 
-            let model; // A global variable to store the loaded model
-            let originalImageData = null; // Store original image data
-            let originalImageSrc = null; // Store original image source
-            let adjustedCanvas = document.createElement('canvas'); // Canvas for adjusted image
-            let brightness = 0; // Current brightness value
-            let contrast = 0; // Current contrast value
-            let isPreviewUpdate = false; // Nova flag global
+        // 1️⃣ Carrega o modelo BodyPix
+        async function loadModel() {
+            try {
+                statusDiv.textContent = "Carregando modelo BodyPix...";
+                model = await bodyPix.load({
+                    architecture: 'MobileNetV1',
+                    outputStride: 16,
+                    multiplier: 0.75,
+                    quantBytes: 2
+                });
+                statusDiv.textContent = "Modelo carregado! Escolha uma imagem.";
+            } catch (e) {
+                statusDiv.textContent = "Erro ao carregar modelo.";
+                console.error(e);
+            }
+        }
 
-            const STEP = 5; // Increment/decrement step
-            const MIN_VALUE = -100;
-            const MAX_VALUE = 100;
+        // 2️⃣ Processa a imagem e remove o fundo
+        async function processImage(img) {
+            statusDiv.textContent = "Detectando pessoa...";
+            const segmentation = await model.segmentPerson(img, {
+                internalResolution: 'medium',
+                segmentationThreshold: 0.7
+            });
 
-            // Load the BodyPix model once on page load
-            async function loadModel() {
-                console.log('[LOAD_MODEL] Iniciando carregamento do modelo BodyPix');
-                try {
-                    statusDiv.textContent = 'Carregando o modelo TensorFlow BodyPix...';
-                    model = await bodyPix.load({
-                        architecture: 'MobileNetV1',
-                        outputStride: 16,
-                        multiplier: 0.75,
-                        quantBytes: 2
-                    });
-                    statusDiv.textContent = 'TensorFlow BodyPix pronto. Selecione uma imagem.';
-                } catch (error) {
-                    statusDiv.textContent = 'Erro ao carregar TensorFlow BodyPix. Tente novamente.';
-                    console.error('Erro ao carregar modelo BodyPix:', error);
+            outputCanvas.width = img.width;
+            outputCanvas.height = img.height;
+
+            const imageData = ctx.getImageData(0, 0, img.width, img.height);
+            const data = imageData.data;
+
+            // Cria uma nova imagem com fundo transparente
+            ctx.drawImage(img, 0, 0);
+            const newImage = ctx.getImageData(0, 0, img.width, img.height);
+            const newData = newImage.data;
+
+            for (let i = 0; i < newData.length; i += 4) {
+                const pixelIndex = i / 4;
+                if (segmentation.data[pixelIndex] === 0) {
+                    // Define o fundo como transparente
+                    newData[i + 3] = 0;
                 }
             }
 
-            // Function to apply brightness and contrast adjustments
-            function applyBrightnessContrast(imageData, brightness, contrast) {
-                const data = imageData.data;
-                const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-                
-                for (let i = 0; i < data.length; i += 4) {
-                    // Apply contrast then brightness to RGB channels
-                    data[i] = Math.min(255, Math.max(0, factor * (data[i] - 128) + 128 + brightness));     // R
-                    data[i + 1] = Math.min(255, Math.max(0, factor * (data[i + 1] - 128) + 128 + brightness)); // G
-                    data[i + 2] = Math.min(255, Math.max(0, factor * (data[i + 2] - 128) + 128 + brightness)); // B
-                    // Alpha channel (i + 3) remains unchanged
-                }
-                
-                return imageData;
-            }
+            ctx.putImageData(newImage, 0, 0);
+            outputCanvas.style.display = 'block';
+            statusDiv.textContent = "Pessoa isolada com sucesso!";
+        }
 
-            // Function to update UI elements
-            function updateUI() {
-                brightnessValue.textContent = brightness;
-                contrastValue.textContent = contrast;
-                
-                // Update progress bars (0-100 range mapped to 0-100%)
-                const brightnessPercent = ((brightness - MIN_VALUE) / (MAX_VALUE - MIN_VALUE)) * 100;
-                const contrastPercent = ((contrast - MIN_VALUE) / (MAX_VALUE - MIN_VALUE)) * 100;
-                brightnessBar.style.width = brightnessPercent + '%';
-                contrastBar.style.width = contrastPercent + '%';
-            }
-            
-            // Function to update the preview with current brightness/contrast settings
-            function updateImagePreview() {
-                // Always update UI first
-                updateUI();
-                
-                if (!originalImageData) {
-                    return;
-                }
-                
-                // Create a copy of original image data (important: create new ImageData object)
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = originalImageData.width;
-                tempCanvas.height = originalImageData.height;
-                const tempCtx = tempCanvas.getContext('2d');
-                
-                // Get a fresh copy from the original data
-                const imageData = tempCtx.createImageData(originalImageData.width, originalImageData.height);
-                // Copy pixel by pixel to ensure we don't modify the original
-                for (let i = 0; i < originalImageData.data.length; i++) {
-                    imageData.data[i] = originalImageData.data[i];
-                }
-                
-                // Apply adjustments to the copy
-                applyBrightnessContrast(imageData, brightness, contrast);
-                
-                // Update the adjusted canvas
-                adjustedCanvas.width = tempCanvas.width;
-                adjustedCanvas.height = tempCanvas.height;
-                const adjustedCtx = adjustedCanvas.getContext('2d');
-                adjustedCtx.putImageData(imageData, 0, 0);
-                
-                // Update the display
-                // Set flag before updating src
-                isPreviewUpdate = true;
-                originalImage.src = adjustedCanvas.toDataURL();
-            }
+        // 3️⃣ Quando o usuário seleciona uma imagem
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
 
-            // Function to process the selected image
-            async function processImage(imageElement) {
-                if (!model) {
-                    statusDiv.textContent = 'Erro: o modelo não foi carregado.';
-                    return;
-                }
-
-                // Reset UI state for a new image upload
-                statusDiv.textContent = 'Processando...';
-                progressBar.style.width = '0%';
-                maskCanvas.style.display = 'none';
-                
-                try {
-                    // Get the segmentation of a person
-                    progressBar.style.width = '25%';
-                    const segmentation = await model.segmentPerson(imageElement, {
-                        flipHorizontal: false,
-                        internalResolution: 'medium',
-                        segmentationThreshold: 0.7,
-                        maxDetections: 1
-                    });
-                    
-                    progressBar.style.width = '75%';
-
-                    if (segmentation.allPoses.length > 0) {
-                        // A person was detected, create a silhouette mask
-                        const foregroundColor = { r: 255, g: 255, b: 255, a: 255 }; // White silhouette
-                        const backgroundColor = { r: 0, g: 0, b: 0, a: 0 }; // Transparent background
-                        const backgroundDarkeningMask = bodyPix.toMask(
-                            segmentation,
-                            foregroundColor,
-                            backgroundColor,
-                            true
-                        );
-
-                        // Draw the mask on the canvas
-                        const opacity = 1.0;
-                        const flipHorizontal = false;
-                        const maskBlurAmount = 0;
-                        
-                        maskCanvas.width = imageElement.naturalWidth;
-                        maskCanvas.height = imageElement.naturalHeight;
-                        
-                        bodyPix.drawMask(
-                            maskCanvas, 
-                            imageElement, 
-                            backgroundDarkeningMask, 
-                            opacity, 
-                            maskBlurAmount, 
-                            flipHorizontal
-                        );
-
-                        maskCanvas.style.display = 'block';
-                        statusDiv.textContent = 'Pessoa detectada!';
-                    } else {
-                        // No person detected
-                        statusDiv.textContent = 'Nenhuma pessoa detectada.';
-                        maskCanvas.style.display = 'none';
-                        ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-                    }
-                    
-                    progressBar.style.width = '100%';
-
-                } catch (error) {
-                    statusDiv.textContent = 'Erro durante o processamento.';
-                    console.error('Erro durante o processamento:', error);
-                    progressBar.style.width = '0%';
-                }
-            }
-
-            // Event listeners for brightness buttons
-            brightnessPlus.addEventListener('click', () => {
-                brightness = Math.min(MAX_VALUE, brightness + STEP);
-                updateImagePreview();
-            });
-            
-            brightnessMinus.addEventListener('click', () => {
-                brightness = Math.max(MIN_VALUE, brightness - STEP);
-                updateImagePreview();
-            });
-            
-            // Event listeners for contrast buttons
-            contrastPlus.addEventListener('click', () => {
-                contrast = Math.min(MAX_VALUE, contrast + STEP);
-                updateImagePreview();
-            });
-            
-            contrastMinus.addEventListener('click', () => {
-                contrast = Math.max(MIN_VALUE, contrast - STEP);
-                updateImagePreview();
-            });
-            
-            // Event listener for reset button
-            resetButton.addEventListener('click', () => {
-                brightness = 0;
-                contrast = 0;
-                updateUI();
-                
-                // Restore original image
-                if (originalImageSrc) {
-                    originalImage.src = originalImageSrc;
-                }
-                
-                // Hide mask
-                maskCanvas.style.display = 'none';
-                statusDiv.textContent = 'Ajustes resetados. Ajuste brilho/contraste e clique em Processar.';
-            });
-            
-            // Event listener for process button
-            processButton.addEventListener('click', () => {
-                processImage(originalImage);
-            });
-
-            // Event listener for when a file is selected
-            imageInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    statusDiv.textContent = 'Imagem selecionada. Ajuste brilho/contraste e clique em Processar.';
-                    originalImage.style.display = 'block';
-                    originalImage.style.maxWidth = '100%';
-                    
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        // Reset flag when loading a new file
-                        isPreviewUpdate = false;
-                        
-                        originalImage.onload = () => {
-                            // Se NÃO for uma atualização de preview, inicialize os dados originais
-                            if (!isPreviewUpdate) {
-                                // Store original image source
-                                originalImageSrc = e.target.result;
-                                
-                                // Store original image data
-                                const tempCanvas = document.createElement('canvas');
-                                tempCanvas.width = originalImage.naturalWidth;
-                                tempCanvas.height = originalImage.naturalHeight;
-                                const tempCtx = tempCanvas.getContext('2d');
-                                tempCtx.drawImage(originalImage, 0, 0);
-                                originalImageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-                                
-                                // Reset values
-                                brightness = 0;
-                                contrast = 0;
-                                updateUI();
-                                
-                                // Show adjustment controls
-                                adjustmentControls.style.display = 'block';
-                                
-                                // Hide previous mask
-                                maskCanvas.style.display = 'none';
-                            } else {
-                                // Não fazer nada, apenas redefinir a flag
-                                isPreviewUpdate = false;
-                            }
-                        };
-                        originalImage.src = e.target.result;
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-
-            // Initial model load
-            loadModel();
+            const img = new Image();
+            img.onload = async () => {
+                outputCanvas.width = img.width;
+                outputCanvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                await processImage(img);
+            };
+            img.src = URL.createObjectURL(file);
         });
+
+        loadModel();
     </script>
 
 </body>
 </html>
-
