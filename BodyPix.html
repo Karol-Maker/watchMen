@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remover Fundo - BodyPix</title>
+    <title>Detecção de pessoas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0/dist/body-pix.min.js"></script>
@@ -12,99 +12,168 @@
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
         }
-        canvas {
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            max-width: 100%;
-            height: auto;
+        canvas, img {
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .container {
+            max-width: 900px;
         }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
-    <h1 class="text-3xl font-bold text-gray-800 mb-6">Remoção de Fundo (BodyPix)</h1>
+    <div class="container bg-white p-8 rounded-xl shadow-lg w-full">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Detecção de Pessoas</h1>
+        <p class="text-center text-gray-600 mb-6">
+            Selecione uma imagem para análise.
+        </p>
 
-    <label class="cursor-pointer bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition duration-300">
-        Escolher imagem
-        <input type="file" id="imageInput" class="hidden" accept="image/*">
-    </label>
+        <div class="flex flex-col items-center space-y-4">
+            <label class="cursor-pointer bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition duration-300">
+                Selecione uma imagem.
+                <input type="file" id="imageInput" class="hidden" accept="image/*">
+            </label>
 
-    <div id="status" class="mt-4 text-gray-700">Carregando modelo TensorFlow...</div>
-
-    <canvas id="outputCanvas" class="mt-6" style="display:none;"></canvas>
+            <div id="status" class="text-lg font-medium text-gray-700">Processando...</div>
+            <div id="progress" class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div id="progressBar" class="h-full bg-blue-500 transition-all duration-300 ease-in-out" style="width: 0%;"></div>
+            </div>
+            
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full justify-center mt-6">
+                <div class="flex flex-col items-center w-full">
+                    <h2 class="text-xl font-semibold mb-2 text-gray-700">Imagem Original</h2>
+                    <img id="originalImage" class="max-w-full h-auto" style="display:none;" />
+                </div>
+                <div class="flex flex-col items-center w-full">
+                    <h2 class="text-xl font-semibold mb-2 text-gray-700">Pessoas Detectadas</h2>
+                    <canvas id="maskCanvas" class="max-w-full h-auto" style="display:none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
-        const imageInput = document.getElementById('imageInput');
-        const statusDiv = document.getElementById('status');
-        const outputCanvas = document.getElementById('outputCanvas');
-        const ctx = outputCanvas.getContext('2d');
-        let model;
+        document.addEventListener('DOMContentLoaded', () => {
+            const imageInput = document.getElementById('imageInput');
+            const originalImage = document.getElementById('originalImage');
+            const maskCanvas = document.getElementById('maskCanvas');
+            const statusDiv = document.getElementById('status');
+            const progressBar = document.getElementById('progressBar');
+            const ctx = maskCanvas.getContext('2d');
 
-        // 1️⃣ Carrega o modelo BodyPix
-        async function loadModel() {
-            try {
-                statusDiv.textContent = "Carregando modelo BodyPix...";
-                model = await bodyPix.load({
-                    architecture: 'MobileNetV1',
-                    outputStride: 16,
-                    multiplier: 0.75,
-                    quantBytes: 2
-                });
-                statusDiv.textContent = "Modelo carregado! Escolha uma imagem.";
-            } catch (e) {
-                statusDiv.textContent = "Erro ao carregar modelo.";
-                console.error(e);
-            }
-        }
+            let model;
 
-        // 2️⃣ Processa a imagem e remove o fundo
-        async function processImage(img) {
-            statusDiv.textContent = "Detectando pessoa...";
-            const segmentation = await model.segmentPerson(img, {
-                internalResolution: 'medium',
-                segmentationThreshold: 0.7
-            });
-
-            outputCanvas.width = img.width;
-            outputCanvas.height = img.height;
-
-            const imageData = ctx.getImageData(0, 0, img.width, img.height);
-            const data = imageData.data;
-
-            // Cria uma nova imagem com fundo transparente
-            ctx.drawImage(img, 0, 0);
-            const newImage = ctx.getImageData(0, 0, img.width, img.height);
-            const newData = newImage.data;
-
-            for (let i = 0; i < newData.length; i += 4) {
-                const pixelIndex = i / 4;
-                if (segmentation.data[pixelIndex] === 0) {
-                    // Define o fundo como transparente
-                    newData[i + 3] = 0;
+            // Load BodyPix model
+            async function loadModel() {
+                try {
+                    statusDiv.textContent = 'Carregando modelo BodyPix...';
+                    model = await bodyPix.load({
+                        architecture: 'MobileNetV1',
+                        outputStride: 16,
+                        multiplier: 0.75,
+                        quantBytes: 2
+                    });
+                    statusDiv.textContent = 'Modelo carregado! Selecione uma imagem.';
+                } catch (error) {
+                    statusDiv.textContent = 'Erro ao carregar modelo!';
+                    console.error(error);
                 }
             }
 
-            ctx.putImageData(newImage, 0, 0);
-            outputCanvas.style.display = 'block';
-            statusDiv.textContent = "Pessoa isolada com sucesso!";
-        }
+            async function processImage(imageElement) {
+                if (!model) {
+                    statusDiv.textContent = 'Erro: o modelo não foi carregado.';
+                    return;
+                }
 
-        // 3️⃣ Quando o usuário seleciona uma imagem
-        imageInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+                statusDiv.textContent = 'Processando...';
+                progressBar.style.width = '0%';
+                maskCanvas.style.display = 'none';
 
-            const img = new Image();
-            img.onload = async () => {
-                outputCanvas.width = img.width;
-                outputCanvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-                await processImage(img);
-            };
-            img.src = URL.createObjectURL(file);
+                try {
+                    progressBar.style.width = '10%';
+
+                    const MAX_SIZE = 513;
+                    const tempCanvas = document.createElement('canvas');
+                    const tctx = tempCanvas.getContext('2d');
+
+                    let iw = imageElement.naturalWidth;
+                    let ih = imageElement.naturalHeight;
+                    let scale = Math.min(MAX_SIZE / iw, MAX_SIZE / ih);
+
+                    let newW = Math.round(iw * scale);
+                    let newH = Math.round(ih * scale);
+
+                    tempCanvas.width = newW;
+                    tempCanvas.height = newH;
+
+                    tctx.drawImage(imageElement, 0, 0, newW, newH);
+
+                    const resizedImage = new Image();
+                    resizedImage.src = tempCanvas.toDataURL();
+
+                    await new Promise(res => resizedImage.onload = res);
+
+                    progressBar.style.width = '35%';
+
+                    // -------------------------------
+                    // 🔥 RODAR O MODELO NO TAMANHO REDUZIDO
+                    // -------------------------------
+                    const segmentation = await model.segmentPerson(resizedImage, {
+                        flipHorizontal: false,
+                        internalResolution: 'medium',
+                        segmentationThreshold: 0.7,
+                        maxDetections: 1
+                    });
+
+                    progressBar.style.width = '75%';
+
+                    if (segmentation.allPoses.length > 0) {
+                        const foregroundColor = { r: 255, g: 255, b: 255, a: 255 };
+                        const backgroundColor = { r: 0, g: 0, b: 0, a: 0 };
+
+                        const mask = bodyPix.toMask(segmentation, foregroundColor, backgroundColor, true);
+
+                        maskCanvas.width = newW;
+                        maskCanvas.height = newH;
+
+                        bodyPix.drawMask(maskCanvas, resizedImage, mask, 1, 0, false);
+
+                        maskCanvas.style.display = 'block';
+                        statusDiv.textContent = 'Pessoa detectada!';
+                    } else {
+                        statusDiv.textContent = 'Nenhuma pessoa detectada.';
+                        maskCanvas.style.display = 'none';
+                        ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+                    }
+
+                    progressBar.style.width = '100%';
+
+                } catch (error) {
+                    statusDiv.textContent = 'Erro durante o processamento.';
+                    console.error(error);
+                    progressBar.style.width = '0%';
+                }
+            }
+
+            imageInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    statusDiv.textContent = 'Imagem carregada!';
+                    originalImage.style.display = 'block';
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        originalImage.onload = () => processImage(originalImage);
+                        originalImage.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            loadModel();
         });
-
-        loadModel();
     </script>
 
 </body>
